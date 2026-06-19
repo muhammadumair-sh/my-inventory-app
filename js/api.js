@@ -24,14 +24,33 @@ async function apiCall(action, payload = {}, { timeoutMs = 15000 } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    // Debug logging to help diagnose login/connectivity issues
+    console.debug('Api.apiCall ->', action, url, body);
+
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(body),
       signal: controller.signal
     });
-    if (!res.ok) throw new Error('Server returned status ' + res.status);
-    const data = await res.json();
+
+    // Read raw text first so we can include it in errors when parsing fails
+    const rawText = await res.text();
+
+    if (!res.ok) {
+      // include body for easier debugging
+      throw new Error('Server returned status ' + res.status + ': ' + rawText);
+    }
+
+    // Try to parse JSON; if parsing fails, include raw body in the error
+    let data;
+    try {
+      data = JSON.parse(rawText);
+    } catch (err) {
+      throw new Error('Invalid JSON response from server: ' + rawText);
+    }
+
+    console.debug('Api.apiCall response ->', action, data);
     return data;
   } finally {
     clearTimeout(timer);
@@ -44,6 +63,7 @@ async function isOnline() {
     const res = await apiCall('ping', {}, { timeoutMs: 6000 });
     return !!(res && res.success);
   } catch (e) {
+    console.debug('Api.isOnline: ping failed', e);
     return false;
   }
 }
