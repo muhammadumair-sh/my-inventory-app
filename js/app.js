@@ -162,6 +162,64 @@ function bindStaticEvents() {
   $('#closeReceiptModal').addEventListener('click', closeReceiptModal);
   $('#closeReceiptModalBtn').addEventListener('click', closeReceiptModal);
   $('#printReceiptBtn').addEventListener('click', () => window.print());
+
+  // Forgot-password/modal wiring
+  $('#forgotPasswordLink')?.addEventListener('click', (e) => { e.preventDefault(); $('#resetRequestOverlay').classList.remove('hidden'); });
+
+  $('#resetRequestForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = e.target.email.value.trim();
+    try {
+      await Auth.sendResetCode(email);
+      toast('Reset code sent — check your email.', 'success');
+      $('#resetRequestOverlay').classList.add('hidden');
+      $('#codeLoginOverlay').classList.remove('hidden');
+      $('#codeLoginForm').email.value = email;
+    } catch (err) {
+      console.error('sendResetCode error', err);
+      toast(err.message || 'Could not send code.', 'error');
+    }
+  });
+
+  $('#codeLoginForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const email = f.email.value.trim();
+    const code = f.code.value.trim();
+    try {
+      await Auth.loginWithCode(email, code);
+      $('#codeLoginOverlay').classList.add('hidden');
+      $('#loginForm').reset();
+      await enterApp();
+      toast('Logged in with code.', 'success');
+    } catch (err) {
+      console.error('loginWithCode error', err);
+      toast(err.message || 'Code login failed.', 'error');
+    }
+  });
+
+  $('#resetPasswordForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const email = f.email.value.trim();
+    const code = f.code.value.trim();
+    const newPassword = f.newPassword.value;
+    try {
+      await Auth.resetPasswordWithCode(email, code, newPassword);
+      toast('Password updated. You can now login with your new password.', 'success');
+      $('#resetPasswordOverlay').classList.add('hidden');
+    } catch (err) {
+      console.error('resetPasswordWithCode error', err);
+      toast(err.message || 'Could not reset password.', 'error');
+    }
+  });
+
+  $('#closeResetRequest')?.addEventListener('click', () => $('#resetRequestOverlay').classList.add('hidden'));
+  $('#cancelResetRequest')?.addEventListener('click', () => $('#resetRequestOverlay').classList.add('hidden'));
+  $('#closeCodeLogin')?.addEventListener('click', () => $('#codeLoginOverlay').classList.add('hidden'));
+  $('#cancelCodeLogin')?.addEventListener('click', () => $('#codeLoginOverlay').classList.add('hidden'));
+  $('#closeResetPassword')?.addEventListener('click', () => $('#resetPasswordOverlay').classList.add('hidden'));
+  $('#cancelResetPasswordBtn')?.addEventListener('click', () => $('#resetPasswordOverlay').classList.add('hidden'));
 }
 
 function switchView(view) {
@@ -193,7 +251,8 @@ async function onLoginSubmit(e) {
     $('#loginForm').reset();
     await enterApp();
   } catch (err) {
-    errEl.textContent = err.message;
+    console.error('Login error', err);
+    errEl.textContent = err.message || 'Login failed — check console for details.';
   }
 }
 
@@ -412,8 +471,7 @@ async function renderTransactions() {
     body.innerHTML = `<div class="empty-state">No transactions yet.</div>`;
     return;
   }
-  body.innerHTML = `<table><thead><tr>
-      <th>Date</th><th>Time</th><th>Product</th><th>Operation</th><th>Change</th><th>New stock</th><th>By</th><th>Notes</th>
+  body.innerHTML = `<table><thead><tr><th>Date</th><th>Time</th><th>Product</th><th>Operation</th><th>Change</th><th>New stock</th><th>By</th><th>Notes</th>
     </tr></thead><tbody>` +
     txns.map(t => `<tr>
         <td class="num">${t.date}</td>
@@ -428,26 +486,42 @@ async function renderTransactions() {
 }
 
 /* ---------------- Billing ---------------- */
-function renderBilling() {
+async function renderBilling() {
   renderBillingSearchResults();
   renderCart();
   renderRecentBills();
 }
 
-function renderBillingSearchResults() {
-  const query = $('#billingSearchInput').value;
+async function renderBillingSearchResults() {
+  // Ensure products are loaded from local DB if App.products is empty/outdated
+  if (!App.products || App.products.length === 0) {
+    try {
+      App.products = await Inventory.listProducts();
+    } catch (e) {
+      console.error('Could not load local products for billing search', e);
+      // show a friendly message
+      $('#billingSearchResults').innerHTML = `<div class="empty-state">Could not load products — try syncing or reload the app.</div>`;
+      return;
+    }
+  }
+
+  const query = $('#billingSearchInput').value || '';
   const resultsEl = $('#billingSearchResults');
   if (!query.trim()) {
     resultsEl.innerHTML = `<div class="empty-state">Start typing a product name or barcode to add it to the bill.</div>`;
     return;
   }
+
+  // Use the existing search helper but guard types (barcode may be number)
   const matches = Inventory.searchProducts(App.products, query)
-    .filter(p => p.status !== 'Out of Stock')
+    .filter(p => Number(p.quantity) > 0) // ensure in-stock
     .slice(0, 12);
+
   if (matches.length === 0) {
     resultsEl.innerHTML = `<div class="empty-state">No in-stock product matches "${escapeHtml(query)}".</div>`;
     return;
   }
+
   resultsEl.innerHTML = matches.map(p => `
     <div class="search-result-item">
       <div>
@@ -461,6 +535,7 @@ function renderBillingSearchResults() {
     </div>
   `).join('');
 
+  // Re-bind the buttons (same as original)
   $$('button[data-add-to-cart]', resultsEl).forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.addToCart;
