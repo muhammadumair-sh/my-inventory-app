@@ -7,7 +7,7 @@
  * pick up the update instead of serving stale code forever.
  */
 
-const CACHE_NAME = 'utility-store-shell-v1';
+const CACHE_NAME = 'utility-store-shell-v2';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -20,6 +20,7 @@ const SHELL_FILES = [
   './js/auth.js',
   './js/sync.js',
   './js/inventory.js',
+  './js/billing.js',
   './js/app.js'
 ];
 
