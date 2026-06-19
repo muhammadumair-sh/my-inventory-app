@@ -28,7 +28,10 @@
       <div class="login-error" id="loginError"></div>
     </form>
     <div class="login-foot">
-      First time setup? Open <strong>Settings</strong> after logging in once online to confirm the backend address. Default admin is <span class="num">admin</span> / <span class="num">admin123</span> — change it right after your first login.
+      First time setup? Open <strong>Settings</strong> after logging in once online to confirm the backend address. Default admin is <span class="num">admin</span> / <span class="num">admin123</span>
+      <div style="margin-top:8px;font-size:13px;">
+        <a href="#" id="forgotPasswordLink">Forgot password?</a>
+      </div>
     </div>
   </div>
 </div>
@@ -282,6 +285,56 @@
       <button type="button" class="btn" id="closeReceiptModalBtn">Close</button>
       <button type="button" class="btn btn-primary" id="printReceiptBtn">Print</button>
     </div>
+  </div>
+</div>
+
+<!-- ===================== PASSWORD RESET / CODE LOGIN MODALS ===================== -->
+<div class="modal-overlay hidden" id="resetRequestOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3>Reset password</h3><button class="modal-close" id="closeResetRequest">&times;</button></div>
+    <form id="resetRequestForm">
+      <div class="modal-body">
+        <div class="field"><label>Email</label><input type="email" name="email" required></div>
+        <p style="color:var(--muted);font-size:13px;margin-top:6px;">A 6‑digit code will be sent to your email. It expires in 10 minutes.</p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" id="cancelResetRequest">Cancel</button>
+        <button type="submit" class="btn btn-primary">Send code</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="codeLoginOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3>Login with code</h3><button class="modal-close" id="closeCodeLogin">&times;</button></div>
+    <form id="codeLoginForm">
+      <div class="modal-body">
+        <div class="field"><label>Email</label><input type="email" name="email" required></div>
+        <div class="field"><label>Code</label><input type="text" name="code" required maxlength="8"></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" id="cancelCodeLogin">Cancel</button>
+        <button type="submit" class="btn btn-primary">Login</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="resetPasswordOverlay">
+  <div class="modal">
+    <div class="modal-head"><h3>Set a new password</h3><button class="modal-close" id="closeResetPassword">&times;</button></div>
+    <form id="resetPasswordForm">
+      <div class="modal-body">
+        <div class="field"><label>Email</label><input type="email" name="email" required></div>
+        <div class="field"><label>Code</label><input type="text" name="code" required maxlength="8"></div>
+        <div class="field"><label>New password</label><input type="password" name="newPassword" minlength="6" required></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" id="cancelResetPasswordBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Set password</button>
+      </div>
+    </form>
   </div>
 </div>
 
