@@ -46,6 +46,45 @@ async function login(username, password) {
   return res.user;
 }
 
+// New: send password reset code to email (server must implement 'sendResetCode')
+async function sendResetCode(email) {
+  if (!email) throw new Error('Email required');
+  const online = await Api.isOnline();
+  if (!online) throw new Error('Internet connection required to send reset code.');
+  const res = await Api.apiCall('sendResetCode', { email });
+  if (!res.success) throw new Error(res.error || 'Could not send reset code.');
+  return res;
+}
+
+// New: login with email + code (server must implement 'loginWithCode')
+async function loginWithCode(email, code) {
+  if (!email || !code) throw new Error('Email and code required.');
+  const online = await Api.isOnline();
+  if (!online) throw new Error('Internet connection required for code login.');
+  const res = await Api.apiCall('loginWithCode', { email, code });
+  if (!res.success) throw new Error(res.error || 'Login with code failed.');
+
+  AuthState.token = res.token;
+  AuthState.user = res.user;
+  AuthState.expiresAt = res.expiresAt;
+
+  await Store.put('meta', { key: 'sessionToken', value: res.token });
+  await Store.put('meta', { key: 'sessionUser', value: res.user });
+  await Store.put('meta', { key: 'sessionExpires', value: res.expiresAt });
+  return res.user;
+}
+
+// New: reset password using code (server must implement 'resetPassword')
+async function resetPasswordWithCode(email, code, newPassword) {
+  if (!email || !code || !newPassword) throw new Error('Email, code and new password required.');
+  const online = await Api.isOnline();
+  if (!online) throw new Error('Internet connection required to reset password.');
+  const newPasswordHash = await sha256Hex(newPassword);
+  const res = await Api.apiCall('resetPassword', { email, code, newPasswordHash });
+  if (!res.success) throw new Error(res.error || 'Could not reset password.');
+  return res;
+}
+
 async function logout() {
   AuthState.token = null;
   AuthState.user = null;
@@ -63,4 +102,4 @@ function isAdmin() {
   return !!AuthState.user && AuthState.user.role === 'admin';
 }
 
-window.Auth = { loadCachedSession, login, logout, currentUser, isAdmin, state: AuthState };
+window.Auth = { loadCachedSession, login, logout, currentUser, isAdmin, state: AuthState, sendResetCode, loginWithCode, resetPasswordWithCode };
