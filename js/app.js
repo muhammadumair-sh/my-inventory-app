@@ -360,7 +360,7 @@ function bindRowActions(root) {
       if (action === 'adjust') openStockModal(product);
       if (action === 'edit') openProductModal(product);
       if (action === 'delete') {
-        if (confirm(`Delete "${product.name}"? This can't be undone.`)) {
+        if (confirm(`Delete \"${product.name}\"? This can't be undone.`)) {
           await Inventory.deleteProduct(id);
           App.products = await Inventory.listProducts();
           renderCurrentView();
@@ -487,7 +487,16 @@ async function renderTransactions() {
 
 /* ---------------- Billing ---------------- */
 async function renderBilling() {
-  renderBillingSearchResults();
+  // Ensure we have local products available before rendering the billing UI
+  if (!App.products || App.products.length === 0) {
+    try {
+      App.products = await Inventory.listProducts();
+    } catch (e) {
+      console.error('Could not load local products for billing view', e);
+    }
+  }
+
+  await renderBillingSearchResults();
   renderCart();
   renderRecentBills();
 }
