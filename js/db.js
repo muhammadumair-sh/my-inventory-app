@@ -10,7 +10,7 @@
  */
 
 const DB_NAME = 'utilityStoreDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -28,6 +28,9 @@ function openDb() {
       }
       if (!db.objectStoreNames.contains('meta')) {
         db.createObjectStore('meta', { keyPath: 'key' });
+      }
+      if (!db.objectStoreNames.contains('bills')) {
+        db.createObjectStore('bills', { keyPath: 'id' });
       }
     };
     req.onsuccess = () => resolve(req.result);
