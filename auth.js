@@ -29,20 +29,11 @@ async function loadCachedSession() {
 
 async function login(username, password) {
   const passwordHash = await sha256Hex(password);
-
-  let res;
-  try {
-    // Generous timeout: Google Apps Script can be slow to respond on a
-    // "cold start" (first request after the script has been idle for a
-    // while), especially on mobile data. We'd rather wait than wrongly
-    // tell someone they're offline.
-    res = await Api.apiCall('login', { username, passwordHash }, { timeoutMs: 25000 });
-  } catch (err) {
-    if (err && err.name === 'AbortError') {
-      throw new Error('The server is taking too long to respond. Please check your connection and try again — Google Apps Script can be slow on its first request.');
-    }
-    throw new Error('Could not reach the server. Check your internet connection, or confirm the backend URL in Settings is correct.');
+  const online = await Api.isOnline();
+  if (!online) {
+    throw new Error('Login needs an internet connection the first time on this device. Once logged in, you can keep working offline.');
   }
+  const res = await Api.apiCall('login', { username, passwordHash });
   if (!res.success) throw new Error(res.error || 'Login failed.');
 
   AuthState.token = res.token;
