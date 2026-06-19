@@ -42,6 +42,7 @@
     </div>
     <nav>
       <button class="nav-item active" data-view="dashboard">Dashboard</button>
+      <button class="nav-item" data-view="billing">Billing</button>
       <button class="nav-item" data-view="inventory">Inventory</button>
       <button class="nav-item" data-view="transactions">Transactions</button>
       <button class="nav-item" data-view="settings">Settings</button>
@@ -69,7 +70,8 @@
     <section class="view" id="view-dashboard">
       <div class="kpi-grid" id="kpiGrid"></div>
       <div class="quick-actions">
-        <button class="btn btn-primary" id="addProductBtn">Add product</button>
+        <button class="btn btn-primary" data-quick-view="billing">New bill</button>
+        <button class="btn" id="addProductBtn">Add product</button>
         <button class="btn" data-quick-view="inventory">Search inventory</button>
         <button class="btn" data-quick-view="transactions">View transactions</button>
       </div>
@@ -80,6 +82,41 @@
       <div class="panel">
         <div class="panel-head"><h3>Recent activity on this device</h3></div>
         <div class="panel-body" id="recentActivityBody"></div>
+      </div>
+    </section>
+
+    <!-- ---------- BILLING ---------- -->
+    <section class="view hidden" id="view-billing">
+      <div class="billing-grid">
+        <div class="panel">
+          <div class="panel-head"><h3>Find product</h3></div>
+          <div class="panel-body">
+            <div class="toolbar" style="margin-bottom:10px;">
+              <input type="search" id="billingSearchInput" placeholder="Search by name, barcode, category…">
+            </div>
+            <div id="billingSearchResults"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Current bill</h3>
+            <button class="btn btn-small" id="clearCartBtn">Clear</button>
+          </div>
+          <div class="panel-body" id="cartBody"></div>
+          <div class="cart-total-row">
+            <span>Total</span>
+            <span class="num" id="cartTotalValue">0</span>
+          </div>
+          <div class="modal-foot" style="border-top:none;">
+            <button class="btn btn-primary btn-block" id="generateBillBtn">Generate bill</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Recent bills</h3></div>
+        <div class="panel-body" id="recentBillsBody"></div>
       </div>
     </section>
 
@@ -231,6 +268,23 @@
   </div>
 </div>
 
+<!-- ===================== RECEIPT MODAL ===================== -->
+<div class="modal-overlay hidden" id="receiptModalOverlay">
+  <div class="modal">
+    <div class="modal-head no-print">
+      <h3>Receipt</h3>
+      <button class="modal-close" id="closeReceiptModal">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="printReceipt"></div>
+    </div>
+    <div class="modal-foot no-print">
+      <button type="button" class="btn" id="closeReceiptModalBtn">Close</button>
+      <button type="button" class="btn btn-primary" id="printReceiptBtn">Print</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-stack" id="toastStack"></div>
 
 <script src="js/config.js"></script>
@@ -240,6 +294,7 @@
 <script src="js/auth.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/inventory.js"></script>
+<script src="js/billing.js"></script>
 <script src="js/app.js"></script>
 <script>
   if ('serviceWorker' in navigator) {
