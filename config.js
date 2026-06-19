@@ -11,5 +11,5 @@
 window.APP_CONFIG = {
   SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxINE35Gt3Zh2KV9PrkSDR1kasMFJaQ6WTbHB0flkUwq2iqWIXkS21tRTLoyMSeWX4G/exec',
   APP_NAME: 'Utility Store Inventory',
-  SYNC_INTERVAL_MS: 30000 // try to sync every 30 seconds while online
+  SYNC_INTERVAL_MS: 30000
 };
