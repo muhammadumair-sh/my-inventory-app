@@ -532,7 +532,7 @@ async function renderBillingSearchResults() {
   }
 
   resultsEl.innerHTML = matches.map(p => `
-    <div class="search-result-item">
+    <div class="search-result-item" data-product-id="${p.id}">
       <div>
         <div class="sr-name">${escapeHtml(p.name)}</div>
         <div class="sr-meta">${escapeHtml(p.category || '—')} · ${formatCurrency(p.sellingPrice)} / ${escapeHtml(p.unit)} · ${p.quantity} in stock</div>
@@ -544,9 +544,10 @@ async function renderBillingSearchResults() {
     </div>
   `).join('');
 
-  // Re-bind the buttons (same as original)
+  // Re-bind the add buttons
   $$('button[data-add-to-cart]', resultsEl).forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const id = btn.dataset.addToCart;
       const product = App.products.find(p => p.id === id);
       const qtyInput = $(`input[data-qty-for="${id}"]`, resultsEl);
@@ -557,6 +558,26 @@ async function renderBillingSearchResults() {
         toast(`Only ${product.quantity} ${product.unit} of "${product.name}" available.`, 'error');
         return;
       }
+      Billing.cartAdd(product, qty);
+      renderCart();
+      toast(`Added ${qty} × ${product.name} to bill.`, 'success');
+    });
+  });
+
+  // Allow clicking the result row to quickly add product (prompts for qty)
+  $$('.search-result-item', resultsEl).forEach(item => {
+    item.addEventListener('click', (e) => {
+      // ignore clicks on controls (buttons/inputs) — they have their own handlers
+      if (e.target.closest('button') || e.target.matches('input')) return;
+      const id = item.dataset.productId;
+      const product = App.products.find(p => p.id === id);
+      if (!product) return;
+      const defaultQty = 1;
+      const raw = prompt(`Quantity for "${product.name}" (available ${product.quantity}):`, String(defaultQty));
+      if (raw === null) return; // cancelled
+      const qty = Number(raw) || 0;
+      if (qty <= 0) return toast('Enter a valid quantity.', 'error');
+      if (qty > product.quantity) return toast(`Only ${product.quantity} ${product.unit} available.`, 'error');
       Billing.cartAdd(product, qty);
       renderCart();
       toast(`Added ${qty} × ${product.name} to bill.`, 'success');
