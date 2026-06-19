@@ -344,6 +344,94 @@ tr:hover td { background: var(--paper); }
 .form-grid .span-2 { grid-column: 1 / -1; }
 
 .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+
+/* ---------- Billing / POS ---------- */
+.billing-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 20px;
+}
+.search-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item .sr-name { font-weight: 500; }
+.search-result-item .sr-meta { font-size: 12px; color: var(--muted); }
+.qty-input {
+  width: 56px;
+  padding: 5px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  text-align: center;
+}
+.cart-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.cart-line:last-child { border-bottom: none; }
+.cart-line .cl-name { font-weight: 500; font-size: 13px; }
+.cart-line .cl-meta { font-size: 11px; color: var(--muted); }
+.cart-line .cl-controls { display: flex; align-items: center; gap: 6px; }
+.cart-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+}
+.bill-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.bill-row:last-child { border-bottom: none; }
+
+/* ---------- Printable receipt ---------- */
+#printReceipt {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--ink);
+}
+#printReceipt .r-head { text-align: center; margin-bottom: 10px; }
+#printReceipt .r-head h2 { font-size: 16px; margin-bottom: 2px; }
+#printReceipt .r-meta { font-size: 11px; color: var(--muted); margin-bottom: 10px; }
+#printReceipt table { width: 100%; border-collapse: collapse; }
+#printReceipt th, #printReceipt td { padding: 4px 2px; font-size: 12px; text-align: left; }
+#printReceipt th { border-bottom: 1px dashed var(--line); }
+#printReceipt .r-total-row td { border-top: 1px dashed var(--line); font-weight: 700; padding-top: 8px; }
+#printReceipt .r-foot { text-align: center; margin-top: 14px; font-size: 11px; color: var(--muted); }
+
+@media print {
+  body * { visibility: hidden; }
+  #printReceipt, #printReceipt * { visibility: visible; }
+  #printReceipt {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+  }
+  .no-print { display: none !important; }
+  .modal-overlay { position: static; background: none; padding: 0; }
+  .modal { box-shadow: none; border: none; max-width: 100%; max-height: none; }
+}
+
 .toast-stack { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
 .toast {
   background: var(--ink);
@@ -364,5 +452,6 @@ tr:hover td { background: var(--paper); }
   .nav-item { border-left: none; border-bottom: 3px solid transparent; white-space: nowrap; }
   .nav-item.active { border-left-color: transparent; border-bottom-color: var(--accent); }
   .form-grid { grid-template-columns: 1fr; }
+  .billing-grid { grid-template-columns: 1fr; }
   .view { padding: 14px; }
 }
