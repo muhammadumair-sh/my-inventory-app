@@ -152,6 +152,16 @@ function bindStaticEvents() {
   $('#scriptUrlForm').addEventListener('submit', onScriptUrlSave);
   $('#changePasswordForm').addEventListener('submit', onChangePassword);
   $('#addUserForm').addEventListener('submit', onAddUser);
+
+  $('#billingSearchInput').addEventListener('input', renderBillingSearchResults);
+  $('#clearCartBtn').addEventListener('click', () => {
+    if (Billing.Cart.items.length === 0) return;
+    if (confirm('Clear the current bill?')) { Billing.cartClear(); renderCart(); }
+  });
+  $('#generateBillBtn').addEventListener('click', onGenerateBill);
+  $('#closeReceiptModal').addEventListener('click', closeReceiptModal);
+  $('#closeReceiptModalBtn').addEventListener('click', closeReceiptModal);
+  $('#printReceiptBtn').addEventListener('click', () => window.print());
 }
 
 function switchView(view) {
@@ -165,6 +175,7 @@ function switchView(view) {
 
 async function renderCurrentView() {
   if (App.currentView === 'dashboard') renderDashboard();
+  if (App.currentView === 'billing') renderBilling();
   if (App.currentView === 'inventory') renderInventory();
   if (App.currentView === 'transactions') renderTransactions();
   if (App.currentView === 'settings') renderSettings();
@@ -414,6 +425,172 @@ async function renderTransactions() {
         <td>${escapeHtml(t.username || '—')}</td>
         <td>${escapeHtml(t.notes || '—')}</td>
       </tr>`).join('') + `</tbody></table>`;
+}
+
+/* ---------------- Billing ---------------- */
+function renderBilling() {
+  renderBillingSearchResults();
+  renderCart();
+  renderRecentBills();
+}
+
+function renderBillingSearchResults() {
+  const query = $('#billingSearchInput').value;
+  const resultsEl = $('#billingSearchResults');
+  if (!query.trim()) {
+    resultsEl.innerHTML = `<div class="empty-state">Start typing a product name or barcode to add it to the bill.</div>`;
+    return;
+  }
+  const matches = Inventory.searchProducts(App.products, query)
+    .filter(p => p.status !== 'Out of Stock')
+    .slice(0, 12);
+  if (matches.length === 0) {
+    resultsEl.innerHTML = `<div class="empty-state">No in-stock product matches "${escapeHtml(query)}".</div>`;
+    return;
+  }
+  resultsEl.innerHTML = matches.map(p => `
+    <div class="search-result-item">
+      <div>
+        <div class="sr-name">${escapeHtml(p.name)}</div>
+        <div class="sr-meta">${escapeHtml(p.category || '—')} · ${formatCurrency(p.sellingPrice)} / ${escapeHtml(p.unit)} · ${p.quantity} in stock</div>
+      </div>
+      <div class="cl-controls">
+        <input type="number" class="qty-input" min="1" max="${p.quantity}" value="1" data-qty-for="${p.id}">
+        <button class="btn btn-small btn-primary" data-add-to-cart="${p.id}">Add</button>
+      </div>
+    </div>
+  `).join('');
+
+  $$('button[data-add-to-cart]', resultsEl).forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.addToCart;
+      const product = App.products.find(p => p.id === id);
+      const qtyInput = $(`input[data-qty-for="${id}"]`, resultsEl);
+      const qty = Number(qtyInput.value) || 1;
+      const alreadyInCart = Billing.Cart.items.find(i => i.productId === id);
+      const requested = qty + (alreadyInCart ? alreadyInCart.qty : 0);
+      if (requested > product.quantity) {
+        toast(`Only ${product.quantity} ${product.unit} of "${product.name}" available.`, 'error');
+        return;
+      }
+      Billing.cartAdd(product, qty);
+      renderCart();
+      toast(`Added ${qty} × ${product.name} to bill.`, 'success');
+    });
+  });
+}
+
+function renderCart() {
+  const body = $('#cartBody');
+  if (Billing.Cart.items.length === 0) {
+    body.innerHTML = `<div class="empty-state">No items yet — search and add products on the left.</div>`;
+  } else {
+    body.innerHTML = Billing.Cart.items.map(line => `
+      <div class="cart-line">
+        <div>
+          <div class="cl-name">${escapeHtml(line.name)}</div>
+          <div class="cl-meta">${formatCurrency(line.price)} × ${line.qty} ${escapeHtml(line.unit)} = ${formatCurrency(line.price * line.qty)}</div>
+        </div>
+        <div class="cl-controls">
+          <input type="number" class="qty-input" min="1" max="${line.available}" value="${line.qty}" data-cart-qty="${line.productId}">
+          <button class="btn btn-small btn-danger" data-cart-remove="${line.productId}">×</button>
+        </div>
+      </div>
+    `).join('');
+
+    $$('input[data-cart-qty]', body).forEach(input => {
+      input.addEventListener('change', () => {
+        const id = input.dataset.cartQty;
+        let qty = Number(input.value) || 0;
+        const line = Billing.Cart.items.find(i => i.productId === id);
+        if (line && qty > line.available) {
+          toast(`Only ${line.available} ${line.unit} available.`, 'error');
+          qty = line.available;
+        }
+        Billing.cartUpdateQty(id, qty);
+        renderCart();
+      });
+    });
+    $$('button[data-cart-remove]', body).forEach(btn => {
+      btn.addEventListener('click', () => {
+        Billing.cartRemove(btn.dataset.cartRemove);
+        renderCart();
+      });
+    });
+  }
+
+  $('#cartTotalValue').textContent = formatCurrency(Billing.cartTotal());
+}
+
+async function onGenerateBill() {
+  if (Billing.Cart.items.length === 0) {
+    toast('Add at least one product to the bill first.', 'error');
+    return;
+  }
+  try {
+    const bill = await Billing.generateBill();
+    App.products = await Inventory.listProducts();
+    renderBilling();
+    updatePendingBadge();
+    openReceiptModal(bill);
+    toast(`Bill ${bill.billNumber} generated.`, 'success');
+  } catch (err) {
+    toast(err.message || 'Could not generate bill.', 'error');
+  }
+}
+
+async function renderRecentBills() {
+  const bills = await Billing.listBills(10);
+  const body = $('#recentBillsBody');
+  if (bills.length === 0) {
+    body.innerHTML = `<div class="empty-state">No bills generated on this device yet.</div>`;
+    return;
+  }
+  body.innerHTML = bills.map(b => `
+    <div class="bill-row">
+      <div>
+        <strong class="num">${b.billNumber}</strong> — ${b.date} ${b.time} — ${b.items.length} item(s) — by ${escapeHtml(b.cashier || '—')}
+      </div>
+      <div>
+        <span class="num" style="margin-right:10px;">${formatCurrency(b.total)}</span>
+        <button class="btn btn-small" data-view-bill="${b.id}">View / print</button>
+      </div>
+    </div>
+  `).join('');
+  $$('button[data-view-bill]', body).forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const bill = await Billing.getBill(btn.dataset.viewBill);
+      if (bill) openReceiptModal(bill);
+    });
+  });
+}
+
+function openReceiptModal(bill) {
+  const storeNote = window.APP_CONFIG.APP_NAME || 'Utility Store';
+  $('#printReceipt').innerHTML = `
+    <div class="r-head">
+      <h2>${escapeHtml(storeNote)}</h2>
+      <div class="r-meta">Bill ${escapeHtml(bill.billNumber)} · ${bill.date} ${bill.time} · Served by ${escapeHtml(bill.cashier || '—')}</div>
+    </div>
+    <table>
+      <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+      <tbody>
+        ${bill.items.map(i => `<tr>
+            <td>${escapeHtml(i.name)}</td>
+            <td>${i.qty} ${escapeHtml(i.unit)}</td>
+            <td>${formatCurrency(i.price)}</td>
+            <td>${formatCurrency(i.lineTotal)}</td>
+          </tr>`).join('')}
+        <tr class="r-total-row"><td colspan="3">Total</td><td>${formatCurrency(bill.total)}</td></tr>
+      </tbody>
+    </table>
+    <div class="r-foot">Thank you for shopping with us.</div>
+  `;
+  $('#receiptModalOverlay').classList.remove('hidden');
+}
+
+function closeReceiptModal() {
+  $('#receiptModalOverlay').classList.add('hidden');
 }
 
 /* ---------------- Settings ---------------- */
