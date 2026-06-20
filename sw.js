@@ -8,7 +8,7 @@
  */
 
 // Bumped cache name so clients fetch updated JS after this deploy
-const CACHE_NAME = 'utility-store-shell-v6';
+const CACHE_NAME = 'utility-store-shell-v8';
 const SHELL_FILES = [
   './',
   './index.html',
