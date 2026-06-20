@@ -7,7 +7,7 @@
  * pick up the update instead of serving stale code forever.
  */
 
-const CACHE_NAME = 'utility-store-shell-v2';
+const CACHE_NAME = 'utility-store-shell-v3';
 const SHELL_FILES = [
   './',
   './index.html',

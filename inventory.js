@@ -106,15 +106,15 @@ async function adjustStock(id, operation, quantityChange, notes) {
 
 function searchProducts(products, query) {
   if (!query) return products;
-  const q = query.trim().toLowerCase();
+  const q = String(query).trim().toLowerCase();
   return products.filter(p =>
-    (p.name || '').toLowerCase().includes(q) ||
-    (p.barcode || '').toLowerCase().includes(q) ||
-    (p.category || '').toLowerCase().includes(q) ||
-    (p.supplier || '').toLowerCase().includes(q) ||
-    (p.brand || '').toLowerCase().includes(q) ||
-    (p.location || '').toLowerCase().includes(q) ||
-    (p.id || '').toLowerCase().includes(q)
+    String(p.name || '').toLowerCase().includes(q) ||
+    String(p.barcode || '').toLowerCase().includes(q) ||
+    String(p.category || '').toLowerCase().includes(q) ||
+    String(p.supplier || '').toLowerCase().includes(q) ||
+    String(p.brand || '').toLowerCase().includes(q) ||
+    String(p.location || '').toLowerCase().includes(q) ||
+    String(p.id || '').toLowerCase().includes(q)
   );
 }
 
