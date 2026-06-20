@@ -76,39 +76,53 @@ async function nextBillNumber() {
 async function generateBill(notesPrefix) {
   if (Cart.items.length === 0) throw new Error('Cart is empty.');
 
+  // Pre-validate products and stock to avoid partial updates
+  for (const line of Cart.items) {
+    const product = await Store.get('products', line.productId);
+    if (!product) throw new Error('Product not found: ' + line.productId);
+    if ((Number(product.quantity) || 0) < line.qty) throw new Error('Insufficient stock for ' + product.name);
+  }
+
   const billNumber = await nextBillNumber();
   const now = new Date();
   const lines = [];
 
-  for (const line of Cart.items) {
-    await Inventory.adjustStock(
-      line.productId,
-      'decrease',
-      line.qty,
-      `Sale — Bill ${billNumber}${notesPrefix ? ' (' + notesPrefix + ')' : ''}`
-    );
-    lines.push({
-      productId: line.productId,
-      name: line.name,
-      unit: line.unit,
-      price: line.price,
-      qty: line.qty,
-      lineTotal: line.qty * line.price
-    });
-  }
+  try {
+    for (const line of Cart.items) {
+      console.log('Generating bill: adjusting stock for', line.productId, 'qty', line.qty);
+      await Inventory.adjustStock(
+        line.productId,
+        'decrease',
+        line.qty,
+        `Sale — Bill ${billNumber}${notesPrefix ? ' (' + notesPrefix + ')' : ''}`
+      );
+      lines.push({
+        productId: line.productId,
+        name: line.name,
+        unit: line.unit,
+        price: line.price,
+        qty: line.qty,
+        lineTotal: line.qty * line.price
+      });
+    }
 
-  const bill = {
-    id: Sync.uuid(),
-    billNumber,
-    date: now.toISOString().slice(0, 10),
-    time: now.toISOString().slice(11, 19),
-    cashier: Auth.currentUser() ? Auth.currentUser().username : '',
-    items: lines,
-    total: lines.reduce((s, l) => s + l.lineTotal, 0)
-  };
-  await Store.put('bills', bill);
-  cartClear();
-  return bill;
+    const bill = {
+      id: Sync.uuid(),
+      billNumber,
+      date: now.toISOString().slice(0, 10),
+      time: now.toISOString().slice(11, 19),
+      cashier: Auth.currentUser() ? Auth.currentUser().username : '',
+      items: lines,
+      total: lines.reduce((s, l) => s + l.lineTotal, 0)
+    };
+    await Store.put('bills', bill);
+    cartClear();
+    console.log('Bill saved', billNumber);
+    return bill;
+  } catch (err) {
+    console.error('generateBill failed:', err);
+    throw err;
+  }
 }
 
 async function listBills(limit = 50) {
