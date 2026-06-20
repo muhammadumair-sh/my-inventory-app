@@ -1,123 +1,89 @@
 /**
- * inventory.js
- * Every product write goes through here. It updates IndexedDB immediately
- * (so the UI reflects the change with zero latency, online or offline)
- * and queues the matching op for the sync engine to push later.
+ * db.js
+ * Thin promise-based wrapper around IndexedDB. This is the app's
+ * source of truth while offline; the Google Sheet is the source of
+ * truth once synced. Object stores:
+ *   products    - local copy of every product (keyed by id)
+ *   syncQueue   - pending operations waiting to reach the server
+ *   transactions- local cache of stock-movement history
+ *   meta        - small key/value bag (last sync time, cached creds, settings)
  */
 
-function computeStatus(quantity, minStock) {
-  quantity = Number(quantity) || 0;
-  minStock = Number(minStock) || 0;
-  if (quantity <= 0) return 'Out of Stock';
-  if (quantity <= minStock) return 'Low Stock';
-  return 'In Stock';
-}
+const DB_NAME = 'utilityStoreDB';
+// Bumped version to ensure onupgradeneeded runs and missing stores are created
+const DB_VERSION = 3;
 
-async function listProducts() {
-  const all = await Store.getAll('products');
-  return all.filter(p => p.status !== 'Deleted');
-}
-
-async function addProduct(fields) {
-  const now = new Date().toISOString();
-  const quantity = Number(fields.quantity) || 0;
-  const minStock = Number(fields.minStock) || 0;
-  const product = {
-    id: Sync.uuid(),
-    barcode: fields.barcode || '',
-    name: fields.name,
-    category: fields.category || '',
-    brand: fields.brand || '',
-    supplier: fields.supplier || '',
-    purchasePrice: Number(fields.purchasePrice) || 0,
-    sellingPrice: Number(fields.sellingPrice) || 0,
-    quantity,
-    minStock,
-    maxStock: Number(fields.maxStock) || 0,
-    unit: fields.unit || 'pcs',
-    location: fields.location || '',
-    description: fields.description || '',
-    dateAdded: now,
-    lastUpdated: now,
-    status: computeStatus(quantity, minStock),
-    version: 1
-  };
-  await Store.put('products', product);
-  await Sync.queueOp('addProduct', Object.assign({}, product, { localId: product.id }));
-  return product;
-}
-
-async function updateProduct(id, fields) {
-  const existing = await Store.get('products', id);
-  if (!existing) throw new Error('Product not found locally.');
-  const merged = Object.assign({}, existing, fields, {
-    lastUpdated: new Date().toISOString(),
-    version: (existing.version || 1) + 1
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('products')) {
+        db.createObjectStore('products', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('syncQueue')) {
+        db.createObjectStore('syncQueue', { keyPath: 'opId' });
+      }
+      if (!db.objectStoreNames.contains('transactions')) {
+        db.createObjectStore('transactions', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('meta')) {
+        db.createObjectStore('meta', { keyPath: 'key' });
+      }
+      if (!db.objectStoreNames.contains('bills')) {
+        db.createObjectStore('bills', { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
   });
-  merged.status = computeStatus(merged.quantity, merged.minStock);
-  await Store.put('products', merged);
-  await Sync.queueOp('updateProduct', { id, fields });
-  return merged;
 }
 
-async function deleteProduct(id) {
-  const existing = await Store.get('products', id);
-  if (!existing) return;
-  await Store.put('products', Object.assign({}, existing, { status: 'Deleted' }));
-  await Sync.queueOp('deleteProduct', { id });
+let dbPromise = null;
+function getDb() {
+  if (!dbPromise) dbPromise = openDb();
+  return dbPromise;
 }
 
-async function adjustStock(id, operation, quantityChange, notes) {
-  const existing = await Store.get('products', id);
-  if (!existing) throw new Error('Product not found locally.');
-  const oldStock = Number(existing.quantity) || 0;
-  let newStock;
-  if (operation === 'increase') newStock = oldStock + Math.abs(quantityChange);
-  else if (operation === 'decrease') newStock = Math.max(0, oldStock - Math.abs(quantityChange));
-  else newStock = Math.max(0, quantityChange); // adjust = absolute set
-
-  const updated = Object.assign({}, existing, {
-    quantity: newStock,
-    lastUpdated: new Date().toISOString(),
-    status: computeStatus(newStock, existing.minStock),
-    version: (existing.version || 1) + 1
-  });
-  await Store.put('products', updated);
-
-  const localTxn = {
-    id: Sync.uuid(),
-    userId: Auth.currentUser() ? Auth.currentUser().id : '',
-    username: Auth.currentUser() ? Auth.currentUser().username : '',
-    date: new Date().toISOString().slice(0, 10),
-    time: new Date().toISOString().slice(11, 19),
-    productId: id,
-    productName: existing.name,
-    quantityChange: newStock - oldStock,
-    oldStock,
-    newStock,
-    operation,
-    notes: notes || ''
-  };
-  await Store.put('transactions', localTxn);
-
-  await Sync.queueOp('adjustStock', { id, operation, quantityChange, notes });
-  return updated;
+function tx(storeName, mode, fn) {
+  return getDb().then(db => new Promise((resolve, reject) => {
+    const t = db.transaction(storeName, mode);
+    const store = t.objectStore(storeName);
+    const result = fn(store);
+    t.oncomplete = () => resolve(result);
+    t.onerror = () => reject(t.error);
+  }));
 }
 
-function searchProducts(products, query) {
-  if (!query) return products;
-  const q = String(query).trim().toLowerCase();
-  return products.filter(p =>
-    String(p.name || '').toLowerCase().includes(q) ||
-    String(p.barcode || '').toLowerCase().includes(q) ||
-    String(p.category || '').toLowerCase().includes(q) ||
-    String(p.supplier || '').toLowerCase().includes(q) ||
-    String(p.brand || '').toLowerCase().includes(q) ||
-    String(p.location || '').toLowerCase().includes(q) ||
-    String(p.id || '').toLowerCase().includes(q)
-  );
-}
-
-window.Inventory = {
-  listProducts, addProduct, updateProduct, deleteProduct, adjustStock, searchProducts, computeStatus
+const Store = {
+  getAll(storeName) {
+    return getDb().then(db => new Promise((resolve, reject) => {
+      const t = db.transaction(storeName, 'readonly');
+      const req = t.objectStore(storeName).getAll();
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    }));
+  },
+  get(storeName, key) {
+    return getDb().then(db => new Promise((resolve, reject) => {
+      const t = db.transaction(storeName, 'readonly');
+      const req = t.objectStore(storeName).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    }));
+  },
+  put(storeName, obj) {
+    return tx(storeName, 'readwrite', store => store.put(obj));
+  },
+  bulkPut(storeName, objs) {
+    return tx(storeName, 'readwrite', store => objs.forEach(o => store.put(o)));
+  },
+  delete(storeName, key) {
+    return tx(storeName, 'readwrite', store => store.delete(key));
+  },
+  clear(storeName) {
+    return tx(storeName, 'readwrite', store => store.clear());
+  }
 };
+
+window.Store = Store;

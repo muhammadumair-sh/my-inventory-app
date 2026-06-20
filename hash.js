@@ -1,14 +1,15 @@
 /**
- * hash.js
- * Hashes passwords in the browser using the Web Crypto API before they're
- * ever sent over the network, so the server (and the network) never sees
- * a plaintext password. See Auth.gs for the matching server-side note.
+ * config.js
+ * After deploying the Apps Script backend as a Web App, paste the
+ * deployment URL below. It looks like:
+ *   https://script.google.com/macros/s/AKfycb.../exec
+ *
+ * This is also editable from inside the app (Settings panel), which
+ * writes the override into localStorage — that takes priority over the
+ * value below, so you don't have to re-edit this file after deployment.
  */
-async function sha256Hex(text) {
-  const enc = new TextEncoder().encode(text);
-  const digest = await crypto.subtle.digest('SHA-256', enc);
-  return Array.from(new Uint8Array(digest))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-window.sha256Hex = sha256Hex;
+window.APP_CONFIG = {
+  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxINE35Gt3Zh2KV9PrkSDR1kasMFJaQ6WTbHB0flkUwq2iqWIXkS21tRTLoyMSeWX4G/exec',
+  APP_NAME: 'Utility Store Inventory',
+  SYNC_INTERVAL_MS: 30000 // try to sync every 30 seconds while online
+};
