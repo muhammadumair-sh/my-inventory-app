@@ -10,7 +10,8 @@
  */
 
 const DB_NAME = 'utilityStoreDB';
-const DB_VERSION = 2;
+// Bumped version to ensure onupgradeneeded runs and missing stores are created
+const DB_VERSION = 3;
 
 function openDb() {
   return new Promise((resolve, reject) => {
